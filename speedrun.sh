@@ -1,14 +1,15 @@
 #!/bin/bash
 
-# This script is the "Best ChatGPT clone that $100 can buy",
-# It is designed to run in ~4 hours on 8XH100 node at $3/GPU/hour.
+# This script trains a d40 "deep" model (~561M params, 40 layers) for ~$100
+# Using the same compute budget as the standard d20, but 2x deeper (Falcon-style)
+# It is designed to run in ~4-5 hours on 8XH100 node at $3/GPU/hour.
 
 # 1) Example launch (simplest):
 # bash speedrun.sh
 # 2) Example launch in a screen session (because the run takes ~4 hours):
 # screen -L -Logfile speedrun.log -S speedrun bash speedrun.sh
 # 3) Example launch with wandb logging, but see below for setting up wandb first:
-# WANDB_RUN=speedrun screen -L -Logfile speedrun.log -S speedrun bash speedrun.sh
+# WANDB_RUN=d40_deep screen -L -Logfile speedrun.log -S speedrun bash speedrun.sh
 
 # Default intermediate artifacts directory is in ~/.cache/nanochat
 export OMP_NUM_THREADS=1
@@ -23,7 +24,7 @@ command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 # create a .venv local virtual environment (if it doesn't exist)
 [ -d ".venv" ] || uv venv
 # install the repo dependencies
-uv sync --extra gpu
+uv sync
 # activate venv so that `python` uses the project's venv instead of system python
 source .venv/bin/activate
 
@@ -33,7 +34,7 @@ source .venv/bin/activate
 # 1) Make sure to first log in to wandb, e.g. run:
 #    `wandb login`
 # 2) Set the WANDB_RUN environment variable when running this script, e.g.:
-#    `WANDB_RUN=d26 bash speedrun.sh`
+#    `WANDB_RUN=d40_deep bash speedrun.sh`
 if [ -z "$WANDB_RUN" ]; then
     # by default use "dummy" : it's handled as a special case, skips logging to wandb
     WANDB_RUN=dummy
@@ -82,17 +83,18 @@ if [ ! -d "$NANOCHAT_BASE_DIR/eval_bundle" ]; then
     mv eval_bundle $NANOCHAT_BASE_DIR
 fi
 
-# The d20 model is 561M parameters.
-# Chinchilla says #tokens = 20X #params, so we need 561e6 * 20 = 11.2B tokens.
-# Assume our tokenizer is 4.8 chars/token, this is 11.2B * 4.8 ~= 54B chars.
-# At 250M chars/shard, this is 54B / 250M ~= 216 shards needed for pretraining.
+# The d40 deep model is ~575M parameters (2x deeper than d20, narrower width).
+# Chinchilla says #tokens = 20X #params, so we need 575e6 * 20 = 11.5B tokens.
+# Assume our tokenizer is 4.8 chars/token, this is 11.5B * 4.8 ~= 55B chars.
+# At 250M chars/shard, this is 55B / 250M ~= 220 shards needed for pretraining.
 # Round up to 240 for safety. At ~100MB/shard, this downloads ~24GB of data to disk.
 # (The total number of shards available in the entire dataset is 1822.)
 echo "Waiting for dataset download to complete..."
 wait $DATASET_DOWNLOAD_PID
 
-# pretrain the d20 model
-torchrun --standalone --nproc_per_node=8 -m scripts.base_train -- --depth=20 --run=$WANDB_RUN
+# pretrain the d40 deep model (40 layers × 960 dim ≈ 575M params, 2x deeper than d20)
+# use --device_batch_size=16 to avoid OOM with deeper model
+torchrun --standalone --nproc_per_node=8 -m scripts.base_train -- --depth=40 --aspect_ratio=24 --device_batch_size=16 --run=$WANDB_RUN
 # evaluate the model on a larger chunk of train/val data and draw some samples
 torchrun --standalone --nproc_per_node=8 -m scripts.base_loss
 # evaluate the model on CORE tasks
@@ -105,8 +107,8 @@ torchrun --standalone --nproc_per_node=8 -m scripts.base_eval
 # see dev/gen_sft_data.py for details on how this data was prepared and to get a sense of how you can easily tune it
 curl -L -o $NANOCHAT_BASE_DIR/identity_conversations.jsonl https://karpathy-public.s3.us-west-2.amazonaws.com/identity_conversations.jsonl
 
-# run midtraining and eval the model
-torchrun --standalone --nproc_per_node=8 -m scripts.mid_train -- --run=$WANDB_RUN
+# run midtraining and eval the model (use same device_batch_size as base training)
+torchrun --standalone --nproc_per_node=8 -m scripts.mid_train -- --device_batch_size=16 --run=$WANDB_RUN
 torchrun --standalone --nproc_per_node=8 -m scripts.chat_eval -- -i mid
 
 # -----------------------------------------------------------------------------
