@@ -3,14 +3,22 @@
 # Variant of speedrun.sh that assumes the base model already exists.
 # Runs knowledge midtraining, conversation midtraining, SFT, and optional RL (commented out).
 
-# Example launch:
+# Example launch (automatically logs to speedrun_mid.log):
 # bash speedrun_mid.sh
 # 
-# Example launch in a screen session with logging:
-# screen -L -Logfile speedrun_mid.log -S nanochat bash speedrun_mid.sh
+# Example launch with custom log file:
+# LOGFILE=my_custom.log bash speedrun_mid.sh
 #
 # Example launch with wandb logging:
-# WANDB_RUN=snout_midrun screen -L -Logfile speedrun_mid.log -S nanochat bash speedrun_mid.sh
+# WANDB_RUN=snout_midrun bash speedrun_mid.sh
+
+# Setup logging (redirect all output to log file)
+if [ -z "$LOGFILE" ]; then
+    LOGFILE="speedrun_mid_$(date +%Y%m%d_%H%M%S).log"
+fi
+exec > >(tee -a "$LOGFILE") 2>&1
+echo "=== Starting speedrun_mid at $(date) ==="
+echo "=== Logging to: $LOGFILE ==="
 
 export OMP_NUM_THREADS=1
 export NANOCHAT_BASE_DIR="$HOME/.cache/nanochat"
@@ -21,7 +29,6 @@ mkdir -p $NANOCHAT_BASE_DIR
 
 command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 [ -d ".venv" ] || uv venv
-uv sync
 source .venv/bin/activate
 
 # -----------------------------------------------------------------------------
