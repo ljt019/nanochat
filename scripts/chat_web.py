@@ -108,7 +108,7 @@ parser.add_argument(
 parser.add_argument(
     "--model-dir",
     type=str,
-    default=None,
+    default="nanochat-trained-custom",
     help="Directory containing model checkpoints (overrides NANOCHAT_BASE_DIR)",
 )
 args = parser.parse_args()
