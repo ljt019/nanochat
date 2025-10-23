@@ -5,8 +5,12 @@
 
 # Example launch:
 # bash speedrun_mid.sh
-# or with wandb logging:
-# WANDB_RUN=my_midrun bash speedrun_mid.sh
+# 
+# Example launch in a screen session with logging:
+# screen -L -Logfile speedrun_mid.log -S nanochat bash speedrun_mid.sh
+#
+# Example launch with wandb logging:
+# WANDB_RUN=snout_midrun screen -L -Logfile speedrun_mid.log -S nanochat bash speedrun_mid.sh
 
 export OMP_NUM_THREADS=1
 export NANOCHAT_BASE_DIR="$HOME/.cache/nanochat"
@@ -33,21 +37,26 @@ fi
 python -m nanochat.report reset
 
 # -----------------------------------------------------------------------------
-# Ensure identity conversations are present for mid/SFT stages
+# Use custom identity conversations (should already be in cache directory)
+# To regenerate: python dev/gen_synthetic_data.py && cp identity_conversations.jsonl $NANOCHAT_BASE_DIR/
 
-curl -L -o $NANOCHAT_BASE_DIR/identity_conversations.jsonl \
-    https://karpathy-public.s3.us-west-2.amazonaws.com/identity_conversations.jsonl
+# Verify identity file exists
+if [ ! -f "$NANOCHAT_BASE_DIR/identity_conversations.jsonl" ]; then
+    echo "Error: identity_conversations.jsonl not found in $NANOCHAT_BASE_DIR"
+    echo "Please run: python dev/gen_synthetic_data.py && cp identity_conversations.jsonl $NANOCHAT_BASE_DIR/"
+    exit 1
+fi
 
 # -----------------------------------------------------------------------------
 # Knowledge Midtraining (inject Wikipedia factual knowledge)
 
-# Download 20% of FineWiki English (14 shards out of 70, ~7GB)
-python -m nanochat.dataset --dataset finewiki -n 14
+# Download 20% of FineWiki English (3 files out of 15, ~7.5GB)
+python -m nanochat.dataset --dataset finewiki -n 3
 
 # Run knowledge midtraining on raw Wikipedia text
 # Assumes the base checkpoint already exists under base_checkpoints/
 torchrun --standalone --nproc_per_node=8 -m scripts.knowledge_midtrain \
-    -- --device_batch_size=16 --num_iterations=2800 --run=$WANDB_RUN
+    -- --device_batch_size=16 --num_iterations=600 --run=$WANDB_RUN
 
 # -----------------------------------------------------------------------------
 # Conversation Midtraining (teach special tokens, tool use, multiple choice)

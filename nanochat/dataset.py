@@ -34,10 +34,12 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 # FineWiki dataset (English subset)
 FINEWIKI_BASE_URL = (
-    "https://huggingface.co/datasets/HuggingFaceFW/finewiki/resolve/main/data/en"
+    "https://huggingface.co/datasets/HuggingFaceFW/finewiki/resolve/main/data/enwiki"
 )
-FINEWIKI_MAX_SHARD = 69  # train-00000-of-00070 ... train-00069-of-00070
-finewiki_index_to_filename = lambda index: f"train-{index:05d}-of-00070.parquet"
+FINEWIKI_MAX_SHARD = (
+    14  # 000_00000.parquet ... 000_00014.parquet (15 files total, ~37.7GB)
+)
+finewiki_index_to_filename = lambda index: f"000_{index:05d}.parquet"
 FINEWIKI_DATA_DIR = os.path.join(base_dir, "finewiki_data")
 os.makedirs(FINEWIKI_DATA_DIR, exist_ok=True)
 

@@ -71,6 +71,7 @@ wandb_run = (
 # Load base checkpoint
 model, tokenizer, meta = load_model("base", device, phase="train")
 orig_model = model
+model = torch.compile(model, dynamic=False)
 num_params = sum(p.numel() for p in model.parameters())
 print0(f"Loaded base checkpoint with {num_params:,} parameters")
 
