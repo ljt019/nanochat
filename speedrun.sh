@@ -101,6 +101,15 @@ torchrun --standalone --nproc_per_node=8 -m scripts.base_loss
 torchrun --standalone --nproc_per_node=8 -m scripts.base_eval
 
 # -----------------------------------------------------------------------------
+# Knowledge Midtraining (inject Wikipedia factual knowledge)
+
+# download 20% of FineWiki English (14 shards out of 70)
+python -m nanochat.dataset --dataset finewiki -n 14
+
+# run knowledge midtraining on raw Wikipedia text
+torchrun --standalone --nproc_per_node=8 -m scripts.knowledge_midtrain -- --device_batch_size=16 --num_iterations=2800 --run=$WANDB_RUN
+
+# -----------------------------------------------------------------------------
 # Midtraining (teach the model conversation special tokens, tool use, multiple choice)
 
 # download 2.3MB of synthetic identity conversations to impart a personality to nanochat

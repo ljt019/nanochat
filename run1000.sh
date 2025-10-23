@@ -81,6 +81,10 @@ torchrun --standalone --nproc_per_node=8 -m scripts.base_train -- --depth=32 --d
 torchrun --standalone --nproc_per_node=8 -m scripts.base_loss
 torchrun --standalone --nproc_per_node=8 -m scripts.base_eval
 
+# knowledge midtraining
+python -m nanochat.dataset --dataset finewiki -n 14
+torchrun --standalone --nproc_per_node=8 -m scripts.knowledge_midtrain -- --device_batch_size=8 --num_iterations=2800 --run=$WANDB_RUN
+
 # midtrain
 # NOTE: ensure that we use the same device_batch_size here as the base training script.
 torchrun --standalone --nproc_per_node=8 -m scripts.mid_train -- --device_batch_size=8 --run=$WANDB_RUN
